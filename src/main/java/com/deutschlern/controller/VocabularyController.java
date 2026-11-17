@@ -6,26 +6,27 @@ import com.deutschlern.dto.VocabularyStatisticsResponse;
 import com.deutschlern.dto.projection.VocabularyLevelAnalytics;
 import com.deutschlern.dto.projection.VocabularyLevelComparison;
 import com.deutschlern.entity.Vocabulary;
+import com.deutschlern.service.VocabularyIndexService;
 import com.deutschlern.service.VocabularyService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/v1/vocabulary")
 public class VocabularyController {
 
     private final VocabularyService service;
-
-    public VocabularyController(VocabularyService service) {
-        this.service = service;
-    }
+    private final VocabularyIndexService vocabularyIndexService;
 
     @GetMapping
     public List<VocabularyResponse> getAll() {
@@ -109,5 +110,14 @@ public class VocabularyController {
     @GetMapping("/analytics/levels/comparison")
     public List<VocabularyLevelComparison> getLevelComparison() {
         return service.getLevelComparison();
+    }
+
+    @PostMapping("/search/rebuild-index")
+    public ResponseEntity<String> rebuildSearchIndex() {
+        long indexedCount = vocabularyIndexService.rebuildIndex();
+
+        return ResponseEntity.ok(
+                "Successfully indexed " + indexedCount + " vocabulary records"
+        );
     }
 }

@@ -9,6 +9,7 @@ import com.deutschlern.entity.Vocabulary;
 import com.deutschlern.exception.DuplicateResourceException;
 import com.deutschlern.exception.ResourceNotFoundException;
 import com.deutschlern.repository.VocabularyRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -18,14 +19,12 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class VocabularyService {
 
     private final VocabularyRepository repository;
-
-    public VocabularyService(VocabularyRepository repository) {
-        this.repository = repository;
-    }
+    private final VocabularyIndexService vocabularyIndexService;
 
     public List<VocabularyResponse> getAll() {
         return repository.findAll()
@@ -81,7 +80,7 @@ public class VocabularyService {
         vocabulary.setEnglishTranslation(request.englishTranslation());
         vocabulary.setIndonesianTranslation(request.indonesianTranslation());
         vocabulary.setLevel(request.level());
-
+        vocabularyIndexService.index(vocabulary);
         return VocabularyResponse.from(repository.save(vocabulary));
     }
 
@@ -100,6 +99,7 @@ public class VocabularyService {
         existing.setIndonesianTranslation(request.indonesianTranslation());
         existing.setLevel(request.level());
 
+        vocabularyIndexService.index(existing);
         return VocabularyResponse.from(repository.save(existing));
     }
 
@@ -109,6 +109,7 @@ public class VocabularyService {
                 () -> new ResourceNotFoundException("Vocabulary not found: " + id)
         );
 
+        vocabularyIndexService.delete(id);
         repository.delete(vocabulary);
     }
 
@@ -136,7 +137,6 @@ public class VocabularyService {
                 wordsByArticle
         );
     }
-
 
     @Transactional
     public List<VocabularyResponse> createBulk(
@@ -174,11 +174,19 @@ public class VocabularyService {
             vocabularyList.add(vocabulary);
         }
 
-        return repository.saveAll(vocabularyList)
-                .stream()
+        // Save everything to PostgreSQL
+        List<Vocabulary> savedVocabularies =
+                repository.saveAll(vocabularyList);
+
+        // Synchronize all saved records with Elasticsearch
+        vocabularyIndexService.indexAll(savedVocabularies);
+
+        // Return API responses
+        return savedVocabularies.stream()
                 .map(VocabularyResponse::from)
                 .toList();
     }
+
 
     public List<VocabularyLevelAnalytics> getLevelAnalytics() {
         return repository.getLevelAnalytics();
