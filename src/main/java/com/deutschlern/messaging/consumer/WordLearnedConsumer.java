@@ -1,9 +1,11 @@
+
 package com.deutschlern.messaging.consumer;
 
 import com.deutschlern.entity.LearningActivity;
 import com.deutschlern.event.WordLearnedEvent;
 import com.deutschlern.repository.LearningActivityRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class WordLearnedConsumer {
 
     private final LearningActivityRepository repository;
+    private final StringRedisTemplate redisTemplate;
 
     @KafkaListener(
             topics = "word-learned",
@@ -29,6 +32,10 @@ public class WordLearnedConsumer {
         activity.setLevel(event.level());
         activity.setLearnedAt(event.occurredAt());
 
+        // Save learning activity to PostgreSQL
         repository.save(activity);
+
+        // Invalidate cached progress for this student
+        redisTemplate.delete("progress:" + event.studentId());
     }
 }
