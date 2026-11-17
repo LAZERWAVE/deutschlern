@@ -9,7 +9,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.deutschlern</groupId>
-    <artifactId>deutschlern</artifactId>
+    <artifactId>deutschlern-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>deutschlern</name>
     <description>deutschlern</description>
