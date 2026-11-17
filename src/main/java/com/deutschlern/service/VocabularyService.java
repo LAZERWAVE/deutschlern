@@ -2,6 +2,9 @@ package com.deutschlern.service;
 
 import com.deutschlern.dto.VocabularyRequest;
 import com.deutschlern.dto.VocabularyResponse;
+import com.deutschlern.dto.VocabularyStatisticsResponse;
+import com.deutschlern.dto.projection.VocabularyLevelAnalytics;
+import com.deutschlern.dto.projection.VocabularyLevelComparison;
 import com.deutschlern.entity.Vocabulary;
 import com.deutschlern.exception.DuplicateResourceException;
 import com.deutschlern.exception.ResourceNotFoundException;
@@ -11,7 +14,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -106,5 +110,81 @@ public class VocabularyService {
         );
 
         repository.delete(vocabulary);
+    }
+
+    public VocabularyStatisticsResponse getStatistics() {
+
+        List<Vocabulary> vocabularyList = repository.findAll();
+
+        Map<Vocabulary.Level, Long> wordsByLevel =
+                vocabularyList.stream()
+                        .collect(Collectors.groupingBy(
+                                Vocabulary::getLevel,
+                                Collectors.counting()
+                        ));
+
+        Map<Vocabulary.Article, Long> wordsByArticle =
+                vocabularyList.stream()
+                        .collect(Collectors.groupingBy(
+                                Vocabulary::getArticle,
+                                Collectors.counting()
+                        ));
+
+        return new VocabularyStatisticsResponse(
+                vocabularyList.size(),
+                wordsByLevel,
+                wordsByArticle
+        );
+    }
+
+
+    @Transactional
+    public List<VocabularyResponse> createBulk(
+            List<VocabularyRequest> requests) {
+
+        Set<String> words = new HashSet<>();
+        List<Vocabulary> vocabularyList = new ArrayList<>();
+
+        for (VocabularyRequest request : requests) {
+
+            String word = request.germanWord().trim();
+
+            // Check for duplicates within this batch
+            if (!words.add(word.toLowerCase())) {
+                throw new DuplicateResourceException(
+                        "Duplicate word in request: " + word
+                );
+            }
+
+            // Check whether the word already exists in the database
+            if (repository.existsByGermanWordIgnoreCase(word)) {
+                throw new DuplicateResourceException(
+                        "Vocabulary already exists: " + word
+                );
+            }
+
+            Vocabulary vocabulary = new Vocabulary();
+            vocabulary.setGermanWord(word);
+            vocabulary.setArticle(request.article());
+            vocabulary.setPluralForm(request.pluralForm());
+            vocabulary.setEnglishTranslation(request.englishTranslation());
+            vocabulary.setIndonesianTranslation(request.indonesianTranslation());
+            vocabulary.setLevel(request.level());
+
+            vocabularyList.add(vocabulary);
+        }
+
+        return repository.saveAll(vocabularyList)
+                .stream()
+                .map(VocabularyResponse::from)
+                .toList();
+    }
+
+    public List<VocabularyLevelAnalytics> getLevelAnalytics() {
+        return repository.getLevelAnalytics();
+    }
+
+    public List<VocabularyLevelComparison> getLevelComparison() {
+        return repository.getLevelComparison();
     }
 }

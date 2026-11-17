@@ -138,4 +138,114 @@ class VocabularyServiceTest {
 
         verify(repository, never()).delete(any(Vocabulary.class));
     }
+
+    @Test
+    void getStatistics_shouldGroupVocabularyCorrectly() {
+        Vocabulary second = new Vocabulary();
+        second.setId(2L);
+        second.setGermanWord("Buch");
+        second.setArticle(Vocabulary.Article.DAS);
+        second.setPluralForm("Bücher");
+        second.setEnglishTranslation("Book");
+        second.setIndonesianTranslation("Buku");
+        second.setLevel(Vocabulary.Level.A1);
+
+        Vocabulary third = new Vocabulary();
+        third.setId(3L);
+        third.setGermanWord("Schule");
+        third.setArticle(Vocabulary.Article.DIE);
+        third.setPluralForm("Schulen");
+        third.setEnglishTranslation("School");
+        third.setIndonesianTranslation("Sekolah");
+        third.setLevel(Vocabulary.Level.A2);
+
+        Vocabulary fourth = new Vocabulary();
+        fourth.setId(4L);
+        fourth.setGermanWord("Apfel");
+        fourth.setArticle(Vocabulary.Article.DER);
+        fourth.setPluralForm("Äpfel");
+        fourth.setEnglishTranslation("Apple");
+        fourth.setIndonesianTranslation("Apel");
+        fourth.setLevel(Vocabulary.Level.A1);
+
+        when(repository.findAll())
+                .thenReturn(List.of(vocabulary, second, third, fourth));
+
+        var result = service.getStatistics();
+
+        assertEquals(4, result.totalWords());
+
+        assertEquals(3L, result.wordsByLevel().get(Vocabulary.Level.A1));
+        assertEquals(1L, result.wordsByLevel().get(Vocabulary.Level.A2));
+
+        assertEquals(1L, result.wordsByArticle().get(Vocabulary.Article.DER));
+        assertEquals(2L, result.wordsByArticle().get(Vocabulary.Article.DAS));
+        assertEquals(1L, result.wordsByArticle().get(Vocabulary.Article.DIE));
+    }
+
+
+    @Test
+    void createBulk_shouldSaveMultipleVocabularyEntries() {
+        VocabularyRequest first = new VocabularyRequest(
+                "Apfel",
+                Vocabulary.Article.DER,
+                "Äpfel",
+                "Apple",
+                "Apel",
+                Vocabulary.Level.A1
+        );
+
+        VocabularyRequest second = new VocabularyRequest(
+                "Schule",
+                Vocabulary.Article.DIE,
+                "Schulen",
+                "School",
+                "Sekolah",
+                Vocabulary.Level.A1
+        );
+
+        when(repository.existsByGermanWordIgnoreCase(anyString()))
+                .thenReturn(false);
+
+        when(repository.saveAll(anyList()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        List<VocabularyResponse> result =
+                service.createBulk(List.of(first, second));
+
+        assertEquals(2, result.size());
+        assertEquals("Apfel", result.get(0).germanWord());
+        assertEquals("Schule", result.get(1).germanWord());
+
+        verify(repository).saveAll(anyList());
+    }
+
+    @Test
+    void createBulk_shouldRejectDuplicateWordsInSameRequest() {
+        VocabularyRequest first = new VocabularyRequest(
+                "Apfel",
+                Vocabulary.Article.DER,
+                "Äpfel",
+                "Apple",
+                "Apel",
+                Vocabulary.Level.A1
+        );
+
+        VocabularyRequest duplicate = new VocabularyRequest(
+                "Apfel",
+                Vocabulary.Article.DER,
+                "Äpfel",
+                "Apple",
+                "Apel",
+                Vocabulary.Level.A1
+        );
+
+        assertThrows(
+                DuplicateResourceException.class,
+                () -> service.createBulk(List.of(first, duplicate))
+        );
+
+        verify(repository, never()).saveAll(anyList());
+    }
+
 }

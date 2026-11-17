@@ -2,6 +2,9 @@ package com.deutschlern.controller;
 
 import com.deutschlern.dto.VocabularyRequest;
 import com.deutschlern.dto.VocabularyResponse;
+import com.deutschlern.dto.VocabularyStatisticsResponse;
+import com.deutschlern.dto.projection.VocabularyLevelAnalytics;
+import com.deutschlern.dto.projection.VocabularyLevelComparison;
 import com.deutschlern.entity.Vocabulary;
 import com.deutschlern.service.VocabularyService;
 import jakarta.validation.Valid;
@@ -65,6 +68,11 @@ public class VocabularyController {
         return service.search(keyword.trim(), pageable);
     }
 
+    @GetMapping("/statistics")
+    public VocabularyStatisticsResponse getStatistics() {
+        return service.getStatistics();
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public VocabularyResponse create(
@@ -79,9 +87,27 @@ public class VocabularyController {
         return service.update(id, request);
     }
 
+    @PostMapping("/bulk")
+    @ResponseStatus(HttpStatus.CREATED)
+    public List<VocabularyResponse> createBulk(
+            @Valid @RequestBody List<@Valid VocabularyRequest> requests) {
+
+        return service.createBulk(requests);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
         service.delete(id);
+    }
+
+    @GetMapping("/analytics/levels")
+    public List<VocabularyLevelAnalytics> getLevelAnalytics() {
+        return service.getLevelAnalytics();
+    }
+
+    @GetMapping("/analytics/levels/comparison")
+    public List<VocabularyLevelComparison> getLevelComparison() {
+        return service.getLevelComparison();
     }
 }
