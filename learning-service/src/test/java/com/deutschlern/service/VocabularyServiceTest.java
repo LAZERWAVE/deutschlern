@@ -26,6 +26,9 @@ import static org.mockito.Mockito.*;
 class VocabularyServiceTest {
 
     @Mock
+    private VocabularyIndexService vocabularyIndexService;
+
+    @Mock
     private VocabularyRepository repository;
 
     @InjectMocks

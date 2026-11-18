@@ -1,0 +1,118 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: deutschlern-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: deutschlern
+      POSTGRES_USER: deutschlern
+      POSTGRES_PASSWORD: deutschlern_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deutschlern -d deutschlern"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: apache/kafka:4.1.1
+    container_name: deutschlern-kafka
+    restart: unless-stopped
+    ports:
+      - "9094:9094"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+
+      KAFKA_LISTENERS: INTERNAL://:9092,EXTERNAL://:9094,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:9094
+
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: deutschlern-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.4.8
+    container_name: deutschlern-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data_v9:/usr/share/elasticsearch/data
+
+  learning-service:
+    build:
+      context: ./learning-service
+      dockerfile: Dockerfile
+    container_name: deutschlern-learning-service
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/deutschlern
+      SPRING_DATASOURCE_USERNAME: deutschlern
+      SPRING_DATASOURCE_PASSWORD: deutschlern_dev
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      elasticsearch:
+        condition: service_started
+
+  progress-service:
+    build:
+      context: ./progress-service
+      dockerfile: Dockerfile
+    container_name: deutschlern-progress-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/deutschlern
+      SPRING_DATASOURCE_USERNAME: deutschlern
+      SPRING_DATASOURCE_PASSWORD: deutschlern_dev
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      redis:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  kafka_data:
+  redis_data:
+  elasticsearch_data_v9:
